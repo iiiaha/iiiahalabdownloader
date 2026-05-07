@@ -50,6 +50,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # 키는 password 없이 생성되었지만 tauri-cli 가 env var 미설정 시
+          # interactive prompt 를 시도해 signing 이 silent skip 되는 버그가 있음.
+          # GitHub Secrets 는 빈 값을 거부하므로 워크플로 YAML 에 직접 빈 문자열로 박는다.
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "iiiahalab downloader __VERSION__"
