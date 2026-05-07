@@ -123,25 +123,35 @@ jobs:
 
           WIN_SIG=""
           WIN_NAME=""
+
+          # GH Actions bash 는 -e -o pipefail 기본. signing 실패 시 종료되지 않도록 set +e 로 보호.
+          set +e
+
           if [ -n "$NSIS" ]; then
             echo "Signing NSIS: $NSIS"
-            echo "" | npx tauri signer sign -f "$KEY_FILE" "$NSIS" || true
+            echo "" | npx tauri signer sign -f "$KEY_FILE" "$NSIS" > _updater/win-nsis-sign.log 2>&1
+            echo "NSIS signing exit code: $?"
+            gh release upload ${{ github.ref_name }} _updater/win-nsis-sign.log --clobber
             if [ -f "${NSIS}.sig" ]; then
-              gh release upload ${{ github.ref_name }} "${NSIS}.sig" --clobber || true
+              gh release upload ${{ github.ref_name }} "${NSIS}.sig" --clobber
               WIN_SIG=$(cat "${NSIS}.sig")
               WIN_NAME=$(basename "$NSIS")
             fi
           fi
           if [ -n "$MSI" ]; then
             echo "Signing MSI: $MSI"
-            echo "" | npx tauri signer sign -f "$KEY_FILE" "$MSI" || true
+            echo "" | npx tauri signer sign -f "$KEY_FILE" "$MSI" > _updater/win-msi-sign.log 2>&1
+            echo "MSI signing exit code: $?"
+            gh release upload ${{ github.ref_name }} _updater/win-msi-sign.log --clobber
             if [ -f "${MSI}.sig" ]; then
-              gh release upload ${{ github.ref_name }} "${MSI}.sig" --clobber || true
+              gh release upload ${{ github.ref_name }} "${MSI}.sig" --clobber
               # MSI 우선
               WIN_SIG=$(cat "${MSI}.sig")
               WIN_NAME=$(basename "$MSI")
             fi
           fi
+
+          set -e
 
           rm -f "$KEY_FILE"
 
@@ -180,12 +190,19 @@ jobs:
           echo "Found Mac updater tarball: $TAR"
           KEY_FILE=$(mktemp)
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$KEY_FILE"
-          echo "" | npx tauri signer sign -f "$KEY_FILE" "$TAR"
+
+          # bash -e -o pipefail 환경이므로 실패 시 종료되지 않도록 명시 보호.
+          set +e
+          echo "" | npx tauri signer sign -f "$KEY_FILE" "$TAR" > _updater/mac-sign.log 2>&1
+          SIGN_RC=$?
+          set -e
+          echo "Mac signing exit code: $SIGN_RC"
+          gh release upload ${{ github.ref_name }} _updater/mac-sign.log --clobber || true
+
           rm -f "$KEY_FILE"
 
           if [ ! -f "${TAR}.sig" ]; then
-            echo "ERROR: signing produced no .sig file" >&2
-            mkdir -p _updater
+            echo "ERROR: signing produced no .sig file (rc=$SIGN_RC, see mac-sign.log on release)" >&2
             exit 0
           fi
 
