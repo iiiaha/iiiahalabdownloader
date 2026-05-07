@@ -45,24 +45,6 @@ jobs:
       - name: install npm dependencies
         run: npm ci
 
-      - name: debug — verify signing env reaches runner
-        shell: bash
-        run: |
-          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-            echo "❌ TAURI_SIGNING_PRIVATE_KEY is EMPTY or unset"
-          else
-            echo "✅ TAURI_SIGNING_PRIVATE_KEY length=${#TAURI_SIGNING_PRIVATE_KEY}"
-            echo "    starts with: ${TAURI_SIGNING_PRIVATE_KEY:0:30}..."
-          fi
-          if [ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD+x}" ]; then
-            echo "❌ TAURI_SIGNING_PRIVATE_KEY_PASSWORD is UNSET (env var doesn't exist)"
-          else
-            echo "✅ TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set (length=${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD})"
-          fi
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-
       - name: build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -114,5 +96,150 @@ jobs:
           echo "Uploading $src as iiiahalab-downloader.dmg"
           cp "$src" ./iiiahalab-downloader.dmg
           gh release upload ${{ github.ref_name }} ./iiiahalab-downloader.dmg --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # === Manual updater signing — tauri-action 의 자체 signing 이 silent skip 되는 이슈 우회 ===
+      # 빌드 산출물에 minisign 으로 직접 서명하고 latest.json 매니페스트를 만들어 릴리스에 첨부.
+      # 로컬에서 echo "" | npx tauri signer sign 으로 동작 확인된 흐름 그대로 CI 에서 재현.
+      - name: sign updater artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          set -e
+          # Windows updater 형식은 NSIS .exe 또는 MSI. Tauri Updater 는 둘 다 지원하지만
+          # tauri.conf.json 의 updaterJsonPreferNsis: false 설정상 MSI 를 우선시.
+          KEY_FILE=$(mktemp)
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$KEY_FILE"
+
+          NSIS=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe 2>/dev/null | head -1)
+          MSI=$(ls src-tauri/target/release/bundle/msi/*.msi 2>/dev/null | head -1)
+
+          if [ -n "$NSIS" ]; then
+            echo "Signing NSIS: $NSIS"
+            echo "" | npx tauri signer sign -f "$KEY_FILE" "$NSIS"
+            gh release upload ${{ github.ref_name }} "${NSIS}.sig" --clobber
+            WIN_SIG=$(cat "${NSIS}.sig")
+            WIN_NAME=$(basename "$NSIS")
+          fi
+          if [ -n "$MSI" ]; then
+            echo "Signing MSI: $MSI"
+            echo "" | npx tauri signer sign -f "$KEY_FILE" "$MSI"
+            gh release upload ${{ github.ref_name }} "${MSI}.sig" --clobber
+            # MSI 우선
+            WIN_SIG=$(cat "${MSI}.sig")
+            WIN_NAME=$(basename "$MSI")
+          fi
+
+          rm -f "$KEY_FILE"
+
+          # 다른 잡(macos)에서 합쳐 latest.json 만들 수 있도록 임시 파일에 보관 → artifact 로 주고받기
+          mkdir -p _updater
+          echo "$WIN_SIG" > _updater/win.sig
+          echo "$WIN_NAME" > _updater/win.name
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: sign updater artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          set -e
+          KEY_FILE=$(mktemp)
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$KEY_FILE"
+
+          # Mac updater 형식은 .app.tar.gz
+          TAR=$(ls src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -1)
+          if [ -z "$TAR" ]; then
+            TAR=$(ls src-tauri/target/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -1)
+          fi
+          if [ -z "$TAR" ]; then
+            echo "No .app.tar.gz found" >&2
+            exit 1
+          fi
+
+          echo "Signing Mac tarball: $TAR"
+          echo "" | npx tauri signer sign -f "$KEY_FILE" "$TAR"
+          gh release upload ${{ github.ref_name }} "${TAR}.sig" --clobber
+
+          MAC_SIG=$(cat "${TAR}.sig")
+          MAC_NAME=$(basename "$TAR")
+
+          rm -f "$KEY_FILE"
+
+          mkdir -p _updater
+          echo "$MAC_SIG" > _updater/mac.sig
+          echo "$MAC_NAME" > _updater/mac.name
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 두 잡이 _updater 디렉토리를 통해 sig 값을 공유하도록 artifact 업/다운로드.
+      - name: upload updater fragments
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.platform }}
+          path: _updater/
+          if-no-files-found: ignore
+          retention-days: 1
+
+  # 두 빌드 잡이 끝나면 sig 조각들을 모아 latest.json 을 만들어 릴리스에 업로드.
+  publish-updater-manifest:
+    needs: build-tauri
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: download updater fragments
+        uses: actions/download-artifact@v4
+        with:
+          path: _frag/
+          pattern: updater-*
+
+      - name: compose latest.json
+        shell: bash
+        run: |
+          set -e
+          WIN_SIG=$(cat _frag/updater-windows-latest/win.sig 2>/dev/null || echo "")
+          WIN_NAME=$(cat _frag/updater-windows-latest/win.name 2>/dev/null || echo "")
+          MAC_SIG=$(cat _frag/updater-macos-latest/mac.sig 2>/dev/null || echo "")
+          MAC_NAME=$(cat _frag/updater-macos-latest/mac.name 2>/dev/null || echo "")
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          BASE="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+
+          # JSON 안전하게 만들기 위해 jq 사용.
+          jq -n \
+            --arg version "$VERSION" \
+            --arg pub_date "$PUB_DATE" \
+            --arg win_sig "$WIN_SIG" \
+            --arg win_url "$BASE/$WIN_NAME" \
+            --arg mac_sig "$MAC_SIG" \
+            --arg mac_url "$BASE/$MAC_NAME" \
+            '{
+              version: $version,
+              notes: "See the GitHub release for changelog.",
+              pub_date: $pub_date,
+              platforms: (
+                (if $win_sig != "" then {"windows-x86_64": {signature: $win_sig, url: $win_url}} else {} end)
+                +
+                (if $mac_sig != "" then {
+                  "darwin-aarch64": {signature: $mac_sig, url: $mac_url},
+                  "darwin-x86_64":  {signature: $mac_sig, url: $mac_url}
+                } else {} end)
+              )
+            }' > latest.json
+
+          echo "=== latest.json ==="
+          cat latest.json
+
+      - name: upload latest.json to release
+        shell: bash
+        run: |
+          gh release upload ${{ github.ref_name }} latest.json --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
