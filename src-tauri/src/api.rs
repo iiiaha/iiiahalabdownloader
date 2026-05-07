@@ -46,9 +46,10 @@ pub async fn fetch_products() -> AppResult<Vec<Product>> {
     Ok(products)
 }
 
-/// .rbz 파일을 다운로드해 바이트로 반환한다. 익명 호출.
+/// 한 슬러그의 배포 아티팩트를 받아 바이트로 반환한다.
+/// SketchUp 은 .rbz, AutoCAD 는 .exe — 사이트가 file_key 에 따라 적절한 형식을 보내준다.
 /// 호출자가 로컬 캐시에 저장하는 책임을 가진다.
-pub async fn download_rbz(slug: &str) -> AppResult<Vec<u8>> {
+pub async fn download_artifact(slug: &str) -> AppResult<Vec<u8>> {
     let url = format!("{BASE_URL}/api/public/download/{slug}");
     let resp = client()?.get(&url).send().await?;
     let status = resp.status();

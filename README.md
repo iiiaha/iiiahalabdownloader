@@ -74,10 +74,10 @@ The workflow at `.github/workflows/release.yml` builds Windows + macOS (universa
 ```bash
 # 1. Bump version in package.json AND src-tauri/Cargo.toml AND src-tauri/tauri.conf.json (all three must match)
 # 2. Commit
-git commit -am "release v0.1.1"
+git commit -am "release v1.0.1"
 # 3. Tag and push
-git tag v0.1.1
-git push origin main v0.1.1
+git tag v1.0.1
+git push origin main v1.0.1
 ```
 
 GitHub Actions will:
@@ -85,9 +85,9 @@ GitHub Actions will:
 - Build Mac universal .dmg / .app
 - Sign all updater artifacts with minisign
 - Generate `latest.json` with signatures + download URLs
-- Create a public GitHub Release at `v0.1.1` with everything attached
+- Create a public GitHub Release at `v1.0.1` with everything attached
 
-Existing users of older versions will see a "Downloader v0.1.1 available" toast on next launch — clicking it auto-applies the update and restarts.
+Existing users of older versions will see a "Downloader v1.0.1 available" toast on next launch — clicking it auto-applies the update and restarts.
 
 ## Distribution
 
@@ -103,7 +103,7 @@ Users download the .exe (Windows) or .dmg (macOS) from a download page on `iiiah
 - The downloader does no auth — anyone can install any extension.
 - License verification happens inside each extension at SketchUp runtime via `license.rbe`. Non-buyers see a "Purchase required" dialog.
 - Self-update artifacts are minisign-signed; the public key is embedded in the binary at `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`. Tampered updates are rejected.
-- v0.1 is **not OS-code-signed** (no Win EV cert / Apple Developer ID). Users will see SmartScreen / Gatekeeper warnings on first run. v0.2+ will introduce signing.
+- v1.0 is **not OS-code-signed** (no Win EV cert / Apple Developer ID). Users will see SmartScreen / Gatekeeper warnings on first run. v0.2+ will introduce signing.
 
 ## License
 

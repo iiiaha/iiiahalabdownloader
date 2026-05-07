@@ -1,3 +1,4 @@
+use crate::autocad;
 use crate::cache;
 use crate::error::{AppError, AppResult};
 use crate::process;
@@ -95,7 +96,7 @@ pub async fn install_or_update(
         ));
     }
 
-    let rbz_path = cache::get_or_download(&slug, &version).await?;
+    let rbz_path = cache::get_or_download(&slug, &version, "rbz").await?;
 
     let mut reports = Vec::with_capacity(plugins_dirs.len());
     for plugins_dir in plugins_dirs {
@@ -122,6 +123,16 @@ pub async fn cmd_install_extension(
 ) -> AppResult<Vec<InstallReport>> {
     let dirs: Vec<PathBuf> = plugins_dirs.into_iter().map(PathBuf::from).collect();
     install_or_update(slug, version, dirs).await
+}
+
+/// AutoCAD 익스텐션 설치/업데이트 — Inno Setup .exe 를 인터랙티브로 실행.
+/// SketchUp 과 다르게 호스트 버전별 폴더가 없고 마법사가 레지스트리 등록까지 처리.
+#[tauri::command]
+pub async fn cmd_install_autocad(slug: String, version: String) -> AppResult<i32> {
+    let exe_path = cache::get_or_download(&slug, &version, "exe").await?;
+    let code = autocad::run_installer(&exe_path).await?;
+    let _ = cache::cleanup_old_versions(&slug, &version);
+    Ok(code)
 }
 
 #[tauri::command]

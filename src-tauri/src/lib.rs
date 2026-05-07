@@ -1,4 +1,5 @@
 mod api;
+mod autocad;
 mod cache;
 mod error;
 mod installer;
@@ -23,8 +24,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             api::cmd_fetch_products,
             sketchup::cmd_scan_installations,
+            autocad::cmd_scan_autocad,
             process::cmd_is_sketchup_running,
             installer::cmd_install_extension,
+            installer::cmd_install_autocad,
             installer::cmd_uninstall_extension,
             cache::cmd_clear_cache,
             cache::cmd_cache_stats,

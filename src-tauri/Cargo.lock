@@ -1573,9 +1573,10 @@ dependencies = [
 
 [[package]]
 name = "iiiahalab-downloader"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "dirs 5.0.1",
+ "encoding_rs",
  "futures-util",
  "regex",
  "reqwest 0.12.28",
@@ -4199,6 +4200,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "windows-sys 0.61.2",
 ]

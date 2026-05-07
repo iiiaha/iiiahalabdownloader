@@ -1,12 +1,19 @@
-/* Header (matches the 18 extensions' dialog headers) */
+/* App skeleton — DESIGN_RULES § 3-0 외곽 4px 규칙
+ * body 자체엔 padding 0, header/main 이 각자 4px 패딩을 책임진다. */
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header — § 3-2 (배경 없음, body bg 와 동일 회색 위에 얹힘).
+ * 룰 § 3-2 는 padding 4px 6px 이지만 § 3-1 다이어그램은 헤더↔섹션 간격 4px 를 의도.
+ * 그래서 하단 패딩만 0 으로 깎아 총 간격을 4px (= main 상단 패딩) 로 맞춘다. */
 .app-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: var(--pad) calc(var(--pad) * 1.5);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: var(--pad) calc(var(--pad) * 1.5) 0 calc(var(--pad) * 1.5);
+  flex-shrink: 0;
 }
 .app-header h3 {
   margin: 0;
@@ -16,31 +23,24 @@
 }
 .credit {
   font-size: var(--size-credit);
-  color: var(--text-secondary);
-}
-.credit a {
-  color: var(--text-link);
+  color: var(--text-credit);
 }
 
-/* Main content area */
+/* Main — § 3-4 padding 4px */
 #main {
-  flex: 1;
-  min-height: 0;
+  padding: var(--pad);
   display: flex;
   flex-direction: column;
   gap: var(--pad);
-  overflow: hidden;
 }
 
-/* Card — basic surface block */
-.card {
+/* Section card — § 3-3 */
+.section {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: calc(var(--pad) * 1.5);
 }
-
-/* Section title */
 .section-title {
   font-size: var(--size-section-title);
   font-weight: bold;
@@ -49,29 +49,30 @@
   color: var(--text-secondary);
   margin: 0 0 var(--pad) 0;
 }
-
-/* Label */
 .label {
   font-size: var(--size-label);
   font-weight: bold;
   color: var(--text-label);
 }
 
-/* Buttons */
+/* Buttons — § 4-1 ~ 4-3 */
 button {
-  font-family: var(--font);
-  font-size: var(--size-base);
-  font-weight: bold;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text-primary);
+  font-family: var(--font);
+  font-size: var(--size-base);
+  font-weight: bold;
   padding: calc(var(--pad) * 0.75) calc(var(--pad) * 2);
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
 button:hover {
   background: var(--hover);
+}
+button:active {
+  background: var(--active);
 }
 button.primary {
   background: var(--primary);
@@ -81,54 +82,131 @@ button.primary {
 button.primary:hover {
   background: var(--primary-hover);
 }
+button.primary:active {
+  background: var(--primary-active);
+}
 button.danger {
   background: var(--danger);
   color: #fff;
-  border-color: var(--danger);
+  border-color: var(--danger-hover);
+}
+button.danger:hover {
+  background: var(--danger-hover);
+}
+button.success {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+}
+button.success:hover {
+  filter: brightness(0.92);
 }
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  pointer-events: none;
+}
+/* OK 상태 — 비활성이지만 시각적으로 구분 (초록 텍스트, full opacity) */
+button.ok:disabled {
+  opacity: 1;
+  background: var(--surface);
+  color: var(--success);
+  border-color: var(--border);
 }
 
-/* Library list */
+/* Toolbar (section-style, but with the .section padding/border) */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pad);
+  align-items: center;
+  padding: var(--pad) calc(var(--pad) * 1.5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+.toolbar .spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Library list — § 4-7 list pattern */
 .lib-list {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
+
+/* Column grid: name (1fr) | installed | latest | action
+ * 가로 갭은 8px(--pad*2) 로 살짝 더 줘서 latest ↔ action 사이 숨통. */
 .lib-row {
   display: grid;
-  grid-template-columns: 32px 1fr 100px 100px 90px;
-  gap: var(--pad);
+  grid-template-columns: 1fr 60px 60px 80px;
+  gap: var(--pad) calc(var(--pad) * 2);
   align-items: center;
-  padding: calc(var(--pad) * 1.5) var(--pad);
+  padding: 3px calc(var(--pad) * 1.5);
+}
+
+/* Header row — table-style index */
+.lib-head {
+  font-size: var(--size-section-title);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
+  padding-top: var(--pad);
+  padding-bottom: var(--pad);
+  flex-shrink: 0;
 }
-.lib-row:last-child {
-  border-bottom: none;
+.lib-head.platform-sketchup {
+  background: #e9f1f8;
 }
-.lib-row:hover {
+.lib-head.platform-autocad {
+  background: #f7e9e9;
+}
+.lib-head .head-ver {
+  text-align: right;
+}
+.lib-head .head-action {
+  text-align: center;
+}
+
+/* Body wrapper around data rows — natural height, no internal scroll
+ * (윈도우가 콘텐츠 높이를 그대로 갖도록 fitWindow 가 처리). */
+.lib-body {
+  display: flex;
+  flex-direction: column;
+}
+.lib-body .lib-row + .lib-row {
+  border-top: 1px solid var(--border);
+}
+.lib-body .lib-row:hover {
   background: var(--hover);
 }
-.lib-row .thumb {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  object-fit: cover;
-  background: var(--bg);
-}
+
 .lib-row .name {
   font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .lib-row .ver {
   font-family: monospace;
   font-size: var(--size-base);
   color: var(--text-label);
+  text-align: right;
+}
+.lib-row .action-cell {
+  text-align: right;
+}
+.lib-row .action-cell button {
+  width: 100%;
+  padding-left: var(--pad);
+  padding-right: var(--pad);
 }
 
 /* Status pills */
@@ -140,6 +218,7 @@ button:disabled {
   text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  display: inline-block;
 }
 .status.up-to-date {
   background: var(--bg);
@@ -158,21 +237,51 @@ button:disabled {
   color: var(--danger);
 }
 
-/* Toolbar */
-.toolbar {
+/* Modal overlay/box — § 7 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
-  gap: var(--pad);
   align-items: center;
-  padding: var(--pad);
+  justify-content: center;
+  z-index: 200;
+}
+.modal-box {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  padding: calc(var(--pad) * 3);
+  min-width: 240px;
+  max-width: 320px;
 }
-.toolbar .spacer {
-  flex: 1;
+.modal-box .modal-title {
+  font-size: var(--size-base);
+  font-weight: bold;
+  color: var(--text-primary);
+  margin: 0 0 calc(var(--pad) * 2) 0;
+}
+.modal-box .modal-body {
+  font-size: var(--size-base);
+  color: var(--text-primary);
+  margin-bottom: calc(var(--pad) * 2);
+  line-height: 1.5;
+}
+.modal-box .modal-hint {
+  font-size: var(--size-label);
+  color: var(--danger);
+  margin-bottom: calc(var(--pad) * 2);
+}
+.modal-box .modal-actions {
+  display: flex;
+  gap: var(--pad);
+  justify-content: flex-end;
 }
 
-/* Toast */
+/* Toast (non-design-rules — minimal, flat) */
 .toast {
   position: fixed;
   right: var(--pad);
@@ -181,7 +290,6 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--pad) calc(var(--pad) * 2);
-  box-shadow: none;
   font-size: var(--size-base);
   display: flex;
   gap: var(--pad);

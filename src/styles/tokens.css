@@ -1,12 +1,14 @@
 /*
  * Design tokens — extracted from C:\Users\LEE\Desktop\extensions\DESIGN_RULES.md
- * These must stay in sync visually with the 18 SketchUp extensions.
- * Do not introduce shadows, blur, scale transforms, or large border-radius.
+ * 18개 익스텐션의 HtmlDialog UI와 시각적 일관성을 위해 토큰을 그대로 따른다.
+ * 그림자, blur, scale transform, border-radius > 2px 모두 금지 (§ 9).
  */
 :root {
   --primary: #3498db;
   --primary-hover: #2980b9;
+  --primary-active: #2471a3;
   --danger: #e74c3c;
+  --danger-hover: #c0392b;
   --success: #27ae60;
   --bg: #f0f0f0;
   --surface: #ffffff;
@@ -14,11 +16,13 @@
   --border-strong: #999999;
   --text-primary: #333333;
   --text-secondary: #888888;
+  --text-credit: #666666;
   --text-label: #555555;
   --text-link: #0066cc;
+  --text-link-hover: #0052a3;
   --hover: #e8e8e8;
-  --selected-bg: #3498db;
-  --selected-fg: #ffffff;
+  --active: #dddddd;
+  --selected-bg: #edf6ff;
 
   --font: Arial, sans-serif;
   --size-base: 11px;
@@ -46,24 +50,22 @@ body {
 }
 
 body {
-  padding: var(--pad);
-  height: 100vh;
-  overflow: hidden;
-}
-
-#app {
+  /* fitWindow 패턴(§ 8-1): body 가 콘텐츠 높이를 그대로 갖게 두고
+   * Tauri 측에서 그 높이를 윈도우 outer size 로 반영. */
   display: flex;
   flex-direction: column;
-  height: 100%;
-  gap: var(--pad);
 }
 
 a {
   color: var(--text-link);
   text-decoration: underline;
+  cursor: pointer;
+}
+a:hover {
+  color: var(--text-link-hover);
 }
 
-/* Scrollbar — flat, 4px */
+/* Scrollbar — 4px 폭, flat (§ 5) */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -71,6 +73,9 @@ a {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: var(--radius);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 ::-webkit-scrollbar-track {
   background: transparent;

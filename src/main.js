@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 
 const SITE_BASE = "https://iiiahalab.com";
 const main = document.getElementById("main");
@@ -7,11 +8,12 @@ const main = document.getElementById("main");
 const STATE = {
   view: "library", // "library" | "settings"
   products: [],
-  installs: [],
+  installs: [], // SketchUp 호스트별 설치 (Vec<SketchUpInstall>)
+  autocad: { installed: {}, installed_unknown: [] }, // AutoCadInstall (단일)
   loading: true,
   error: null,
   busySlugs: new Set(),
-  appVersion: "0.1.0",
+  appVersion: "1.0.0",
   // disabled SU labels (e.g. "SketchUp 2024") — persisted in localStorage
   disabledSu: loadDisabledSu(),
 };
@@ -56,6 +58,13 @@ function el(tag, props = {}, children = []) {
 }
 
 function computeRow(product, installs) {
+  if (product.platform === "autocad") {
+    return computeRowAutoCad(product);
+  }
+  return computeRowSketchUp(product, installs);
+}
+
+function computeRowSketchUp(product, installs) {
   const slug = product.slug;
   const latest = product.version || null;
 
@@ -99,6 +108,83 @@ function computeRow(product, installs) {
   return { product, perSu, installedDisplay, status, latest };
 }
 
+function computeRowAutoCad(product) {
+  const slug = product.slug;
+  const latest = product.version || null;
+  const installed = STATE.autocad.installed[slug] || null;
+  const isUnknown = STATE.autocad.installed_unknown.includes(slug);
+
+  let status;
+  let installedDisplay;
+  if (isUnknown) {
+    status = "unknown";
+    installedDisplay = "?";
+  } else if (!installed) {
+    status = "not-installed";
+    installedDisplay = "—";
+  } else if (latest && installed === latest) {
+    status = "up-to-date";
+    installedDisplay = installed;
+  } else {
+    status = "update-available";
+    installedDisplay = installed;
+  }
+
+  return { product, perSu: [], installedDisplay, status, latest };
+}
+
+/**
+ * 가운데 모달 — SketchUp 실행 중일 때 안내. Retry 시 재확인하여
+ * 닫혔으면 true 로 resolve, 사용자가 Cancel 하면 false 로 resolve.
+ */
+function showSketchUpRunningModal() {
+  return new Promise((resolve) => {
+    const overlay = el("div", { class: "modal-overlay" }, []);
+    const hint = el("div", { class: "modal-hint" }, []);
+
+    const close = (proceed) => {
+      overlay.remove();
+      resolve(proceed);
+    };
+
+    const cancelBtn = el("button", { onclick: () => close(false) }, ["Cancel"]);
+    const retryBtn = el(
+      "button",
+      {
+        class: "primary",
+        onclick: async () => {
+          retryBtn.setAttribute("disabled", "");
+          retryBtn.textContent = "Checking…";
+          const stillRunning = await invoke("cmd_is_sketchup_running").catch(
+            () => true
+          );
+          if (!stillRunning) {
+            close(true);
+            return;
+          }
+          hint.textContent =
+            "Still running — please make sure every SketchUp window is fully closed.";
+          retryBtn.removeAttribute("disabled");
+          retryBtn.textContent = "Retry";
+        },
+      },
+      ["Retry"]
+    );
+
+    const box = el("div", { class: "modal-box" }, [
+      el("div", { class: "modal-title" }, ["SketchUp is running"]),
+      el("div", { class: "modal-body" }, [
+        "Please close all SketchUp windows before installing or updating extensions, then click Retry.",
+      ]),
+      hint,
+      el("div", { class: "modal-actions" }, [cancelBtn, retryBtn]),
+    ]);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  });
+}
+
 function showToast(text, kind = "info") {
   const existing = document.querySelector(".toast");
   if (existing) existing.remove();
@@ -113,6 +199,18 @@ function showToast(text, kind = "info") {
 }
 
 async function performInstall(product) {
+  if (!product.version) {
+    showToast(`No version available for ${product.name}.`, "error");
+    return;
+  }
+
+  if (product.platform === "autocad") {
+    return performInstallAutoCad(product);
+  }
+  return performInstallSketchUp(product);
+}
+
+async function performInstallSketchUp(product) {
   const installs = activeInstalls();
   const plugins_dirs = installs.map((s) => s.plugins_dir);
   if (plugins_dirs.length === 0) {
@@ -124,10 +222,6 @@ async function performInstall(product) {
     );
     return;
   }
-  if (!product.version) {
-    showToast(`No version available for ${product.name}.`, "error");
-    return;
-  }
 
   STATE.busySlugs.add(product.slug);
   render();
@@ -135,11 +229,8 @@ async function performInstall(product) {
   try {
     const running = await invoke("cmd_is_sketchup_running");
     if (running) {
-      showToast(
-        "SketchUp is running. Please close it and click again.",
-        "error"
-      );
-      return;
+      const proceed = await showSketchUpRunningModal();
+      if (!proceed) return;
     }
 
     showToast(`Installing ${product.name} v${product.version}…`);
@@ -154,6 +245,33 @@ async function performInstall(product) {
       `Installed ${product.name} v${product.version} on ${plugins_dirs.length} SketchUp install${plugins_dirs.length === 1 ? "" : "s"}.`,
       "success"
     );
+  } catch (err) {
+    showToast("Install failed: " + err, "error");
+  } finally {
+    STATE.busySlugs.delete(product.slug);
+    render();
+  }
+}
+
+async function performInstallAutoCad(product) {
+  STATE.busySlugs.add(product.slug);
+  render();
+  try {
+    showToast(
+      `Launching ${product.name} v${product.version} installer…`,
+      "info"
+    );
+    await invoke("cmd_install_autocad", {
+      slug: product.slug,
+      version: product.version,
+    });
+
+    // 마법사 종료 후 재스캔. CAD 슬러그가 있으니 다시 호출.
+    const cadSlugs = STATE.products
+      .filter((p) => p.platform === "autocad")
+      .map((p) => p.slug);
+    STATE.autocad = await invoke("cmd_scan_autocad", { slugs: cadSlugs });
+    showToast(`${product.name} installer finished.`, "success");
   } catch (err) {
     showToast("Install failed: " + err, "error");
   } finally {
@@ -178,27 +296,12 @@ function renderToolbar() {
     .map((p) => computeRow(p, activeInstalls()))
     .filter((r) => r.status === "update-available").length;
   const busy = STATE.busySlugs.size > 0;
-  const active = activeInstalls();
 
   return el("div", { class: "toolbar" }, [
     el("span", { class: "label" }, [
-      `${STATE.products.length} products · ${active.length} of ${STATE.installs.length} SketchUp install${STATE.installs.length === 1 ? "" : "s"} active`,
+      `${STATE.products.length} products`,
     ]),
     el("span", { class: "spacer" }),
-    el(
-      "button",
-      { onclick: () => loadAll(), disabled: busy ? "" : null },
-      ["Refresh"]
-    ),
-    el(
-      "button",
-      {
-        class: "primary",
-        disabled: updatableCount === 0 || busy ? "" : null,
-        onclick: () => updateAll(),
-      },
-      [updatableCount > 0 ? `Update all (${updatableCount})` : "Update all"]
-    ),
     el(
       "button",
       {
@@ -210,48 +313,56 @@ function renderToolbar() {
       },
       ["Settings"]
     ),
+    el(
+      "button",
+      {
+        class: "danger",
+        disabled: updatableCount === 0 || busy ? "" : null,
+        onclick: () => updateAll(),
+      },
+      [updatableCount > 0 ? `Update all (${updatableCount})` : "Update all"]
+    ),
   ]);
 }
 
 function renderRow(row) {
   const { product, installedDisplay, status, latest } = row;
-  const thumbUrl = product.thumbnail_url
-    ? SITE_BASE + product.thumbnail_url
-    : null;
   const busy = STATE.busySlugs.has(product.slug);
 
+  // 모든 상태를 동일 크기 버튼으로. 상태별 라벨/색상/활성화만 다름.
   let action;
   if (busy) {
     action = el("button", { disabled: "" }, ["Working…"]);
-  } else if (status === "update-available" || status === "not-installed") {
+  } else if (status === "update-available") {
     action = el(
       "button",
       { class: "primary", onclick: () => performInstall(product) },
-      [status === "not-installed" ? "Install" : "Update"]
+      ["Update"]
+    );
+  } else if (status === "not-installed") {
+    action = el(
+      "button",
+      { class: "success", onclick: () => performInstall(product) },
+      ["Install"]
     );
   } else if (status === "unknown") {
-    action = el("button", { onclick: () => performInstall(product) }, [
-      "Reinstall",
-    ]);
+    action = el(
+      "button",
+      { onclick: () => performInstall(product) },
+      ["Reinstall"]
+    );
   } else if (status === "up-to-date") {
-    action = el("span", { class: "status up-to-date" }, ["✓ OK"]);
+    action = el("button", { class: "ok", disabled: "" }, ["OK"]);
   } else {
-    action = el("span", { class: "label" }, ["—"]);
+    // no-su (스케치업 자체가 없음)
+    action = el("button", { disabled: "" }, ["—"]);
   }
 
-  return el("div", { class: "lib-row", title: product.subtitle || "" }, [
-    thumbUrl
-      ? el("img", { class: "thumb", src: thumbUrl, alt: product.name })
-      : el("div", { class: "thumb" }),
-    el("div", {}, [
-      el("div", { class: "name" }, [product.name]),
-      product.subtitle
-        ? el("div", { class: "label" }, [product.subtitle])
-        : null,
-    ]),
+  return el("div", { class: "lib-row", title: product.subtitle || product.name }, [
+    el("div", { class: "name" }, [product.name]),
     el("div", { class: "ver" }, [installedDisplay]),
     el("div", { class: "ver" }, [latest || "—"]),
-    el("div", {}, [action]),
+    el("div", { class: "action-cell" }, [action]),
   ]);
 }
 
@@ -302,7 +413,7 @@ function renderSettings() {
       el("span", { class: "spacer" }),
       el("span", { class: "label" }, ["Settings"]),
     ]),
-    el("div", { class: "card" }, [
+    el("div", { class: "section" }, [
       el("div", { class: "section-title" }, ["SketchUp installations"]),
       el(
         "div",
@@ -313,7 +424,7 @@ function renderSettings() {
       ),
       ...suToggles,
     ]),
-    el("div", { class: "card" }, [
+    el("div", { class: "section" }, [
       el("div", { class: "section-title" }, ["About"]),
       el("div", {}, [`iiiahalab downloader v${STATE.appVersion}`]),
       el("div", { class: "label", style: "margin-top: 4px;" }, [
@@ -326,12 +437,40 @@ function renderSettings() {
   ];
 }
 
+/**
+ * 콘텐츠 높이에 맞춰 윈도우를 리사이즈한다 (extension의 fitDialog 와 동일 컨셉).
+ * § 8-1 패턴: body.scrollHeight + (outerHeight - innerHeight = chrome offset).
+ * 호출자가 다음 페인트 직후 부르도록 requestAnimationFrame 으로 감싼다.
+ */
+let __fitTimer = null;
+function scheduleFit() {
+  clearTimeout(__fitTimer);
+  __fitTimer = setTimeout(() => {
+    requestAnimationFrame(fitWindow);
+  }, 30);
+}
+async function fitWindow() {
+  try {
+    const chrome = window.outerHeight - window.innerHeight;
+    const targetH = document.body.scrollHeight + chrome;
+    const win = getCurrentWindow();
+    await win.setSize(new LogicalSize(window.outerWidth, targetH));
+  } catch (err) {
+    console.warn("fitWindow failed:", err);
+  }
+}
+
 function render() {
+  renderInner();
+  scheduleFit(); // 모든 render path 후 윈도우 자동 fit
+}
+
+function renderInner() {
   main.innerHTML = "";
 
   if (STATE.error) {
     main.appendChild(
-      el("div", { class: "card" }, [
+      el("div", { class: "section" }, [
         el("div", { class: "section-title" }, ["Error"]),
         el("div", {}, [STATE.error]),
         el("button", { onclick: () => loadAll() }, ["Retry"]),
@@ -342,7 +481,7 @@ function render() {
 
   if (STATE.loading) {
     main.appendChild(
-      el("div", { class: "card" }, [
+      el("div", { class: "section" }, [
         el("div", { class: "section-title" }, ["Status"]),
         el("div", {}, [
           "Loading products and scanning SketchUp installations…",
@@ -359,12 +498,45 @@ function render() {
 
   main.appendChild(renderToolbar());
 
-  const list = el("div", { class: "lib-list" }, []);
-  for (const product of STATE.products) {
-    const row = computeRow(product, activeInstalls());
-    list.appendChild(renderRow(row));
+  // platform 으로 그룹핑. 알 수 없는 platform 은 sketchup 으로 간주.
+  const sketchupProducts = STATE.products.filter(
+    (p) => p.platform !== "autocad"
+  );
+  const autocadProducts = STATE.products.filter(
+    (p) => p.platform === "autocad"
+  );
+
+  if (sketchupProducts.length > 0) {
+    main.appendChild(
+      renderPlatformList("SKETCHUP", sketchupProducts, "sketchup")
+    );
   }
-  main.appendChild(list);
+  if (autocadProducts.length > 0) {
+    main.appendChild(
+      renderPlatformList("AUTOCAD", autocadProducts, "autocad")
+    );
+  }
+}
+
+function renderPlatformList(title, products, platformClass) {
+  const headRow = el(
+    "div",
+    { class: `lib-row lib-head platform-${platformClass}` },
+    [
+      el("div", { class: "head-name" }, [title]),
+      el("div", { class: "head-ver" }, ["Installed"]),
+      el("div", { class: "head-ver" }, ["Latest"]),
+      el("div", { class: "head-action" }, ["Action"]),
+    ]
+  );
+
+  const body = el("div", { class: "lib-body" }, []);
+  for (const product of products) {
+    const row = computeRow(product, activeInstalls());
+    body.appendChild(renderRow(row));
+  }
+
+  return el("div", { class: "lib-list" }, [headRow, body]);
 }
 
 async function loadAll() {
@@ -376,11 +548,26 @@ async function loadAll() {
     const [products, installs, version] = await Promise.all([
       invoke("cmd_fetch_products"),
       invoke("cmd_scan_installations"),
-      getVersion().catch(() => "0.1.0"),
+      getVersion().catch(() => "1.0.0"),
     ]);
     STATE.products = products;
     STATE.installs = installs;
     STATE.appVersion = version;
+
+    // AutoCAD 슬러그가 하나라도 있으면 별도 스캔
+    const cadSlugs = STATE.products
+      .filter((p) => p.platform === "autocad")
+      .map((p) => p.slug);
+    if (cadSlugs.length > 0) {
+      try {
+        STATE.autocad = await invoke("cmd_scan_autocad", { slugs: cadSlugs });
+      } catch (err) {
+        console.warn("AutoCAD scan failed:", err);
+        STATE.autocad = { installed: {}, installed_unknown: [] };
+      }
+    } else {
+      STATE.autocad = { installed: {}, installed_unknown: [] };
+    }
   } catch (err) {
     STATE.error = String(err);
   } finally {
