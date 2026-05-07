@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "iiiahalab-downloader",
+  "version": "0.1.0",
+  "identifier": "com.iiiahalab.downloader",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "iiiahalab downloader",
+        "width": 720,
+        "height": 480,
+        "minWidth": 600,
+        "minHeight": 400,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Install and update iiiahalab SketchUp extensions",
+    "longDescription": "Portable downloader for iiiahalab.com SketchUp extensions. Detects installed versions, fetches the latest, and updates with one click."
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/iiiaha/iiiahalabdownloader/releases/latest/download/latest.json"
+      ],
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDREMTQ5ODZGMEE2RDk0NUMKUldSY2xHMEtiNWdVVFc5aW1NenJsSlZKWDNaZjB5V1dvZzhZYURrV2FtekVnSTlDR1Z2dDF4QlcK"
+    }
+  }
+}

@@ -1,0 +1,190 @@
+/* Header (matches the 18 extensions' dialog headers) */
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--pad) calc(var(--pad) * 1.5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.app-header h3 {
+  margin: 0;
+  font-size: var(--size-base);
+  font-weight: bold;
+  color: black;
+}
+.credit {
+  font-size: var(--size-credit);
+  color: var(--text-secondary);
+}
+.credit a {
+  color: var(--text-link);
+}
+
+/* Main content area */
+#main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pad);
+  overflow: hidden;
+}
+
+/* Card — basic surface block */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: calc(var(--pad) * 1.5);
+}
+
+/* Section title */
+.section-title {
+  font-size: var(--size-section-title);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  margin: 0 0 var(--pad) 0;
+}
+
+/* Label */
+.label {
+  font-size: var(--size-label);
+  font-weight: bold;
+  color: var(--text-label);
+}
+
+/* Buttons */
+button {
+  font-family: var(--font);
+  font-size: var(--size-base);
+  font-weight: bold;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: calc(var(--pad) * 0.75) calc(var(--pad) * 2);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+button:hover {
+  background: var(--hover);
+}
+button.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-hover);
+}
+button.primary:hover {
+  background: var(--primary-hover);
+}
+button.danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Library list */
+.lib-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.lib-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 100px 100px 90px;
+  gap: var(--pad);
+  align-items: center;
+  padding: calc(var(--pad) * 1.5) var(--pad);
+  border-bottom: 1px solid var(--border);
+}
+.lib-row:last-child {
+  border-bottom: none;
+}
+.lib-row:hover {
+  background: var(--hover);
+}
+.lib-row .thumb {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--bg);
+}
+.lib-row .name {
+  font-weight: bold;
+}
+.lib-row .ver {
+  font-family: monospace;
+  font-size: var(--size-base);
+  color: var(--text-label);
+}
+
+/* Status pills */
+.status {
+  font-size: var(--size-label);
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.status.up-to-date {
+  background: var(--bg);
+  color: var(--success);
+}
+.status.update-available {
+  background: var(--primary);
+  color: #fff;
+}
+.status.not-installed {
+  background: var(--bg);
+  color: var(--text-secondary);
+}
+.status.unknown {
+  background: var(--bg);
+  color: var(--danger);
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  gap: var(--pad);
+  align-items: center;
+  padding: var(--pad);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  right: var(--pad);
+  bottom: var(--pad);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--pad) calc(var(--pad) * 2);
+  box-shadow: none;
+  font-size: var(--size-base);
+  display: flex;
+  gap: var(--pad);
+  align-items: center;
+  z-index: 100;
+}

@@ -1,0 +1,40 @@
+[package]
+name = "iiiahalab-downloader"
+version = "0.1.0"
+description = "iiiahalab downloader — install/update SketchUp extensions"
+authors = ["iiiaha.lab <iiiaha@naver.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "iiiahalab_downloader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-process = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["fs", "io-util", "sync"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+sysinfo = "0.32"
+regex = "1"
+thiserror = "2"
+dirs = "5"
+futures-util = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+# When enabled, api.rs targets http://localhost:3000 instead of https://iiiahalab.com.
+# Use during local site development: cargo build --features dev
+dev = []

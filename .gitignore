@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+dist/
+.vite/
+
+# Rust
+src-tauri/target/
+# Cargo.lock IS committed for binary projects (Rust convention)
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+build/
+release/
+
+# Tauri Updater secrets
+*.key
+.tauri/
+
+# Env
+.env
+.env.local
+
+# Claude Code internal state
+.claude/
+
+# Tauri Updater capabilities/gen schemas (generated)
+src-tauri/gen/
