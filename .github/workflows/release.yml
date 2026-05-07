@@ -73,3 +73,24 @@ jobs:
           gh release upload ${{ github.ref_name }} src-tauri/target/release/iiiahalab-downloader.exe --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: upload Mac .dmg with stable name
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          # universal-apple-darwin 빌드 산출물의 .dmg 를 버전 없는 고정 이름으로 한 부 더 업로드.
+          # 사이트의 다운로드 배너가 latest/download/iiiahalab-downloader.dmg 영구 URL 을 쓰도록.
+          src=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 2>/dev/null | head -1)
+          if [ -z "$src" ]; then
+            src=$(ls src-tauri/target/release/bundle/dmg/*.dmg 2>/dev/null | head -1)
+          fi
+          if [ -z "$src" ]; then
+            echo "No .dmg found under target/" >&2
+            ls -R src-tauri/target/*/release/bundle/ 2>/dev/null || true
+            exit 1
+          fi
+          echo "Uploading $src as iiiahalab-downloader.dmg"
+          cp "$src" ./iiiahalab-downloader.dmg
+          gh release upload ${{ github.ref_name }} ./iiiahalab-downloader.dmg --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
