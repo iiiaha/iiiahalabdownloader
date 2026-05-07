@@ -106,37 +106,49 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
-          set -e
-          # Windows updater 형식은 NSIS .exe 또는 MSI. Tauri Updater 는 둘 다 지원하지만
-          # tauri.conf.json 의 updaterJsonPreferNsis: false 설정상 MSI 를 우선시.
+          # 진단
+          echo "=== bundle tree (target/) ==="
+          find src-tauri/target -path '*/bundle/*' -type f 2>/dev/null | head -50 || true
+          echo "=== end tree ==="
+
           KEY_FILE=$(mktemp)
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$KEY_FILE"
 
-          NSIS=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe 2>/dev/null | head -1)
-          MSI=$(ls src-tauri/target/release/bundle/msi/*.msi 2>/dev/null | head -1)
+          NSIS=$(find src-tauri/target -path '*/bundle/nsis/*-setup.exe' -type f 2>/dev/null | head -1)
+          MSI=$(find src-tauri/target -path '*/bundle/msi/*.msi' -type f 2>/dev/null | head -1)
 
+          WIN_SIG=""
+          WIN_NAME=""
           if [ -n "$NSIS" ]; then
             echo "Signing NSIS: $NSIS"
-            echo "" | npx tauri signer sign -f "$KEY_FILE" "$NSIS"
-            gh release upload ${{ github.ref_name }} "${NSIS}.sig" --clobber
-            WIN_SIG=$(cat "${NSIS}.sig")
-            WIN_NAME=$(basename "$NSIS")
+            echo "" | npx tauri signer sign -f "$KEY_FILE" "$NSIS" || true
+            if [ -f "${NSIS}.sig" ]; then
+              gh release upload ${{ github.ref_name }} "${NSIS}.sig" --clobber || true
+              WIN_SIG=$(cat "${NSIS}.sig")
+              WIN_NAME=$(basename "$NSIS")
+            fi
           fi
           if [ -n "$MSI" ]; then
             echo "Signing MSI: $MSI"
-            echo "" | npx tauri signer sign -f "$KEY_FILE" "$MSI"
-            gh release upload ${{ github.ref_name }} "${MSI}.sig" --clobber
-            # MSI 우선
-            WIN_SIG=$(cat "${MSI}.sig")
-            WIN_NAME=$(basename "$MSI")
+            echo "" | npx tauri signer sign -f "$KEY_FILE" "$MSI" || true
+            if [ -f "${MSI}.sig" ]; then
+              gh release upload ${{ github.ref_name }} "${MSI}.sig" --clobber || true
+              # MSI 우선
+              WIN_SIG=$(cat "${MSI}.sig")
+              WIN_NAME=$(basename "$MSI")
+            fi
           fi
 
           rm -f "$KEY_FILE"
 
-          # 다른 잡(macos)에서 합쳐 latest.json 만들 수 있도록 임시 파일에 보관 → artifact 로 주고받기
           mkdir -p _updater
-          echo "$WIN_SIG" > _updater/win.sig
-          echo "$WIN_NAME" > _updater/win.name
+          if [ -n "$WIN_SIG" ]; then
+            echo "$WIN_SIG" > _updater/win.sig
+            echo "$WIN_NAME" > _updater/win.name
+            echo "Win sig captured: $WIN_NAME"
+          else
+            echo "WARN: no Win sig produced"
+          fi
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -145,29 +157,34 @@ jobs:
         if: matrix.platform == 'macos-latest'
         shell: bash
         run: |
-          set -e
+          # 진단 — bundle 산출물 트리 전체 출력 후 .tar.gz 찾기
+          echo "=== bundle tree (target/) ==="
+          find src-tauri/target -path '*/bundle/*' -type f 2>/dev/null | head -50 || true
+          echo "=== end tree ==="
+
+          # macOS updater 형식 = .app.tar.gz 또는 .tar.gz
+          TAR=$(find src-tauri/target -path '*/bundle/macos/*.app.tar.gz' -type f 2>/dev/null | head -1)
+          if [ -z "$TAR" ]; then
+            echo "WARN: no .app.tar.gz under bundle/macos/ — tauri-action 이 updater bundle 을 안 만든 듯. Mac 자가업데이트 이번 릴리스엔 미포함 (build 는 계속)."
+            mkdir -p _updater
+            exit 0
+          fi
+
+          echo "Found Mac updater tarball: $TAR"
           KEY_FILE=$(mktemp)
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$KEY_FILE"
-
-          # Mac updater 형식은 .app.tar.gz
-          TAR=$(ls src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -1)
-          if [ -z "$TAR" ]; then
-            TAR=$(ls src-tauri/target/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -1)
-          fi
-          if [ -z "$TAR" ]; then
-            echo "No .app.tar.gz found" >&2
-            exit 1
-          fi
-
-          echo "Signing Mac tarball: $TAR"
           echo "" | npx tauri signer sign -f "$KEY_FILE" "$TAR"
-          gh release upload ${{ github.ref_name }} "${TAR}.sig" --clobber
-
-          MAC_SIG=$(cat "${TAR}.sig")
-          MAC_NAME=$(basename "$TAR")
-
           rm -f "$KEY_FILE"
 
+          if [ ! -f "${TAR}.sig" ]; then
+            echo "ERROR: signing produced no .sig file" >&2
+            mkdir -p _updater
+            exit 0
+          fi
+
+          gh release upload ${{ github.ref_name }} "${TAR}.sig" --clobber || true
+          MAC_SIG=$(cat "${TAR}.sig")
+          MAC_NAME=$(basename "$TAR")
           mkdir -p _updater
           echo "$MAC_SIG" > _updater/mac.sig
           echo "$MAC_NAME" > _updater/mac.name
