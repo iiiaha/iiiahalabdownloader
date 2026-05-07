@@ -134,6 +134,40 @@ function computeRowAutoCad(product) {
 }
 
 /**
+ * Install 버튼 클릭 시 라이선스 안내 모달.
+ * 다운로더는 anonymous 라 사용자 라이선스 보유 여부 모름 — 따라서 사전에 명시적 동의 받음.
+ * 사용자가 라이선스 없는 상태에서 무심코 설치하고 동작 안 한다고 당황하는 일을 방지.
+ */
+function showInstallWarningModal(product) {
+  return new Promise((resolve) => {
+    const overlay = el("div", { class: "modal-overlay" }, []);
+
+    const close = (proceed) => {
+      overlay.remove();
+      resolve(proceed);
+    };
+
+    const cancelBtn = el("button", { onclick: () => close(false) }, ["Cancel"]);
+    const proceedBtn = el(
+      "button",
+      { class: "success", onclick: () => close(true) },
+      ["I have a license"]
+    );
+
+    const box = el("div", { class: "modal-box" }, [
+      el("div", { class: "modal-title" }, [`Install ${product.name}?`]),
+      el("div", { class: "modal-body" }, [
+        "This extension requires a paid license to run. Without a valid license you'll see a 'Purchase required' notice when you launch it.",
+      ]),
+      el("div", { class: "modal-actions" }, [cancelBtn, proceedBtn]),
+    ]);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  });
+}
+
+/**
  * 가운데 모달 — SketchUp 실행 중일 때 안내. Retry 시 재확인하여
  * 닫혔으면 true 로 resolve, 사용자가 Cancel 하면 false 로 resolve.
  */
@@ -342,7 +376,14 @@ function renderRow(row) {
   } else if (status === "not-installed") {
     action = el(
       "button",
-      { class: "success", onclick: () => performInstall(product) },
+      {
+        class: "success",
+        onclick: async () => {
+          const ok = await showInstallWarningModal(product);
+          if (!ok) return;
+          performInstall(product);
+        },
+      },
       ["Install"]
     );
   } else if (status === "unknown") {
