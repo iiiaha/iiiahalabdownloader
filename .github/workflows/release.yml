@@ -45,6 +45,24 @@ jobs:
       - name: install npm dependencies
         run: npm ci
 
+      - name: debug — verify signing env reaches runner
+        shell: bash
+        run: |
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "❌ TAURI_SIGNING_PRIVATE_KEY is EMPTY or unset"
+          else
+            echo "✅ TAURI_SIGNING_PRIVATE_KEY length=${#TAURI_SIGNING_PRIVATE_KEY}"
+            echo "    starts with: ${TAURI_SIGNING_PRIVATE_KEY:0:30}..."
+          fi
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD+x}" ]; then
+            echo "❌ TAURI_SIGNING_PRIVATE_KEY_PASSWORD is UNSET (env var doesn't exist)"
+          else
+            echo "✅ TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set (length=${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD})"
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
       - name: build and release
         uses: tauri-apps/tauri-action@v0
         env:
