@@ -64,9 +64,10 @@ The workflow at `.github/workflows/release.yml` builds Windows + macOS (universa
 
 1. Create the GitHub repository at `https://github.com/iiiaha/iiiahalabdownloader`.
 2. Push this codebase: `git remote add origin git@github.com:iiiaha/iiiahalabdownloader.git && git push -u origin main`.
-3. Add two repository secrets at `Settings → Secrets and variables → Actions`:
+3. Add one repository secret at `Settings → Secrets and variables → Actions`:
    - **`TAURI_SIGNING_PRIVATE_KEY`**: paste the contents of `C:\Users\LEE\.tauri\iiiahalab-downloader.key`.
-   - **`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`**: empty string (no password set during dev — change later for production).
+
+   The current dev key has no password, so no `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secret is needed. When you regenerate the key with a password for production, also add a `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secret and uncomment the matching line in `.github/workflows/release.yml`.
 
 ### Release a new version
 
