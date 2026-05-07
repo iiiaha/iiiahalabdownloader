@@ -106,10 +106,14 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
-          # 진단
-          echo "=== bundle tree (target/) ==="
-          find src-tauri/target -path '*/bundle/*' -type f 2>/dev/null | head -50 || true
-          echo "=== end tree ==="
+          # 진단 — bundle 트리를 파일로 저장해 release asset 으로도 노출
+          mkdir -p _updater
+          {
+            echo "=== bundle tree (target/) ==="
+            find src-tauri/target -path '*/bundle/*' -type f 2>/dev/null | head -100
+            echo "=== end tree ==="
+          } | tee _updater/win-tree.txt
+          gh release upload ${{ github.ref_name }} _updater/win-tree.txt --clobber || true
 
           KEY_FILE=$(mktemp)
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$KEY_FILE"
@@ -157,10 +161,13 @@ jobs:
         if: matrix.platform == 'macos-latest'
         shell: bash
         run: |
-          # 진단 — bundle 산출물 트리 전체 출력 후 .tar.gz 찾기
-          echo "=== bundle tree (target/) ==="
-          find src-tauri/target -path '*/bundle/*' -type f 2>/dev/null | head -50 || true
-          echo "=== end tree ==="
+          mkdir -p _updater
+          {
+            echo "=== bundle tree (target/) ==="
+            find src-tauri/target -path '*/bundle/*' -type f 2>/dev/null | head -100
+            echo "=== end tree ==="
+          } | tee _updater/mac-tree.txt
+          gh release upload ${{ github.ref_name }} _updater/mac-tree.txt --clobber || true
 
           # macOS updater 형식 = .app.tar.gz 또는 .tar.gz
           TAR=$(find src-tauri/target -path '*/bundle/macos/*.app.tar.gz' -type f 2>/dev/null | head -1)
