@@ -129,7 +129,7 @@ jobs:
 
           if [ -n "$NSIS" ]; then
             echo "Signing NSIS: $NSIS"
-            echo "" | npx tauri signer sign "$NSIS" > _updater/win-nsis-sign.log 2>&1
+            npx tauri signer sign --password "" "$NSIS" < /dev/null > _updater/win-nsis-sign.log 2>&1
             echo "NSIS signing exit code: $?"
             gh release upload ${{ github.ref_name }} _updater/win-nsis-sign.log --clobber
             if [ -f "${NSIS}.sig" ]; then
@@ -140,7 +140,7 @@ jobs:
           fi
           if [ -n "$MSI" ]; then
             echo "Signing MSI: $MSI"
-            echo "" | npx tauri signer sign "$MSI" > _updater/win-msi-sign.log 2>&1
+            npx tauri signer sign --password "" "$MSI" < /dev/null > _updater/win-msi-sign.log 2>&1
             echo "MSI signing exit code: $?"
             gh release upload ${{ github.ref_name }} _updater/win-msi-sign.log --clobber
             if [ -f "${MSI}.sig" ]; then
@@ -193,7 +193,7 @@ jobs:
 
           # bash -e -o pipefail 환경이므로 실패 시 종료되지 않도록 명시 보호.
           set +e
-          echo "" | npx tauri signer sign "$TAR" > _updater/mac-sign.log 2>&1
+          npx tauri signer sign --password "" "$TAR" < /dev/null > _updater/mac-sign.log 2>&1
           SIGN_RC=$?
           set -e
           echo "Mac signing exit code: $SIGN_RC"
