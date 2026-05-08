@@ -1,6 +1,6 @@
 [package]
 name = "iiiahalab-downloader"
-version = "1.0.1"
+version = "1.0.2"
 description = "iiiahalab downloader — install/update SketchUp extensions"
 authors = ["iiiaha.lab <iiiaha@naver.com>"]
 edition = "2021"
