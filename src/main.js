@@ -233,7 +233,7 @@ function showToast(text, kind = "info") {
   if (kind !== "error") setTimeout(() => t.remove(), 3500);
 }
 
-async function performInstall(product) {
+async function performInstall(product, opts = {}) {
   if (!product.version) {
     showToast(`No version available for ${product.name}.`, "error");
     return;
@@ -242,10 +242,10 @@ async function performInstall(product) {
   if (product.platform === "autocad") {
     return performInstallAutoCad(product);
   }
-  return performInstallSketchUp(product);
+  return performInstallSketchUp(product, opts);
 }
 
-async function performInstallSketchUp(product) {
+async function performInstallSketchUp(product, opts = {}) {
   const installs = activeInstalls();
   const plugins_dirs = installs.map((s) => s.plugins_dir);
   if (plugins_dirs.length === 0) {
@@ -262,10 +262,13 @@ async function performInstallSketchUp(product) {
   render();
 
   try {
-    const running = await invoke("cmd_is_sketchup_running");
-    if (running) {
-      const proceed = await showSketchUpRunningModal();
-      if (!proceed) return;
+    // Update all 흐름에서는 호출자가 한 번만 미리 체크하므로 skipSuCheck 로 우회.
+    if (!opts.skipSuCheck) {
+      const running = await invoke("cmd_is_sketchup_running");
+      if (running) {
+        const proceed = await showSketchUpRunningModal();
+        if (!proceed) return;
+      }
     }
 
     showToast(`Installing ${product.name} v${product.version}…`);
@@ -321,8 +324,19 @@ async function updateAll() {
     .filter((r) => r.status === "update-available")
     .map((r) => r.product);
 
+  // SketchUp 제품이 하나라도 포함되면 SU 실행 체크는 시작 시점에 한 번만.
+  // 사용자가 Cancel 하면 전체 abort. Retry 후 닫혔으면 이후 항목은 모두 skipSuCheck 로.
+  const hasSketchUp = targets.some((p) => p.platform !== "autocad");
+  if (hasSketchUp) {
+    const running = await invoke("cmd_is_sketchup_running");
+    if (running) {
+      const proceed = await showSketchUpRunningModal();
+      if (!proceed) return;
+    }
+  }
+
   for (const product of targets) {
-    await performInstall(product);
+    await performInstall(product, { skipSuCheck: true });
   }
 }
 
