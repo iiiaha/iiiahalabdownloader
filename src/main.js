@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 
 const SITE_BASE = "https://iiiahalab.com";
 const main = document.getElementById("main");
@@ -622,45 +623,52 @@ async function checkSelfUpdate() {
   try {
     const info = await invoke("cmd_check_update");
     if (!info) return; // 새 버전 없음 / 매니페스트 미배포 — silent
-    showSelfUpdateToast(info);
+    showSelfUpdateModal(info);
   } catch (err) {
     // 호출 자체가 실패해도 사용자 경험에 영향 없음. 콘솔에만 남김.
     console.warn("Self-update check failed:", err);
   }
 }
 
-function showSelfUpdateToast(info) {
-  const existing = document.querySelector(".self-update-toast");
-  if (existing) existing.remove();
+/**
+ * 새 버전이 감지됐을 때 가운데 모달로 안내. 자동 교체는 하지 않고
+ * 사이트에서 새 빌드 받도록 유도 (포터블 .exe 와 in-place 자가 교체의 충돌 회피).
+ */
+function showSelfUpdateModal(info) {
+  if (document.querySelector(".self-update-overlay")) return; // dedup
 
-  const toast = el(
-    "div",
-    { class: "toast self-update-toast", style: "border-color: var(--primary);" },
-    [
-      el("span", {}, [
-        `Downloader v${info.version} available (you have v${info.current_version})`,
-      ]),
-      el(
-        "button",
-        {
-          class: "primary",
-          onclick: async () => {
-            toast.remove();
-            showToast("Updating downloader… app will restart.");
-            try {
-              await invoke("cmd_apply_update");
-            } catch (err) {
-              showToast("Self-update failed: " + err, "error");
-            }
-          },
-        },
-        ["Update now"]
-      ),
-      el("button", { onclick: () => toast.remove() }, ["Later"]),
-    ]
+  const overlay = el("div", { class: "modal-overlay self-update-overlay" }, []);
+  const close = () => overlay.remove();
+
+  const laterBtn = el("button", { onclick: () => close() }, ["Later"]);
+  const visitBtn = el(
+    "button",
+    {
+      class: "primary",
+      onclick: async () => {
+        try {
+          await openExternal("https://iiiahalab.com/mypage");
+        } catch (err) {
+          console.warn("openExternal failed:", err);
+        }
+        close();
+      },
+    },
+    ["Visit iiiahalab.com"]
   );
 
-  document.body.appendChild(toast);
+  const box = el("div", { class: "modal-box" }, [
+    el("div", { class: "modal-title" }, [
+      `Downloader v${info.version} available`,
+    ]),
+    el("div", { class: "modal-body" }, [
+      `You're running v${info.current_version}. Please re-download the latest version from iiiahalab.com.`,
+    ]),
+    el("div", { class: "modal-actions" }, [laterBtn, visitBtn]),
+  ]);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 
 loadAll();
