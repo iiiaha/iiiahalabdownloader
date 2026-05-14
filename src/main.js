@@ -507,10 +507,13 @@ function scheduleFit() {
 }
 async function fitWindow() {
   try {
-    const chrome = window.outerHeight - window.innerHeight;
-    const targetH = document.body.scrollHeight + chrome;
     const win = getCurrentWindow();
-    await win.setSize(new LogicalSize(window.outerWidth, targetH));
+    const scale = await win.scaleFactor();
+    const outer = (await win.outerSize()).toLogical(scale);
+    const inner = (await win.innerSize()).toLogical(scale);
+    const chrome = outer.height - inner.height;
+    const targetH = document.body.scrollHeight + chrome;
+    await win.setSize(new LogicalSize(outer.width, targetH));
   } catch (err) {
     console.warn("fitWindow failed:", err);
   }
